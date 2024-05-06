@@ -28,12 +28,6 @@ def ussd_endpoint(request):
         # Parse incoming USSD request
         ussd_input = request.POST.get('text', '')
 
-        session.user_data = {'ghagshshshashsh'}
-
-        print(active_sessions)
-        print(ussd_input)
-        print(session.user_data)
-
         # Process USSD request based on current state
         response = process_input(session, ussd_input) 
 
