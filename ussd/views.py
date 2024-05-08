@@ -27,9 +27,10 @@ def ussd_endpoint(request):
 
         # Parse incoming USSD request
         ussd_input = request.POST.get('text', '')
+        ussd_text = ussd_input.split('*')[-1]
 
         # Process USSD request based on current state
-        response = process_input(session, ussd_input) 
+        response = process_input(session, ussd_text) 
 
         # Send USSD response
         return HttpResponse(response)
@@ -74,6 +75,7 @@ def handle_select_menu_state(session, input):
     return response
 
 def handle_select_option_state(session, input):
+    global selected_option
     try:
         selected_option_index = int(input)
         selected_option = session.selected_menu.menuoption_set.filter(parent_option=None)[selected_option_index - 1]
@@ -83,6 +85,7 @@ def handle_select_option_state(session, input):
             for i, sub_option in enumerate(sub_options, start=1):
                 response += f"{i}. {sub_option.name}\n"
             session.state = 'select_sub_option'
+            print(session.user_data, 'teyeyeyy')
         else:
             response = f"END You selected: {selected_option.name}. Value: {selected_option.value}"
             session.state = 'start'
@@ -93,7 +96,7 @@ def handle_select_option_state(session, input):
 def handle_select_sub_option_state(session, input):
     try:
         selected_sub_option_index = int(input)
-        selected_sub_option = session.selected_menu.menuoption_set.filter(parent_option=None)[selected_sub_option_index - 1]
+        selected_sub_option = session.selected_menu.menuoption_set.filter(parent_option=selected_option)[selected_sub_option_index - 1]
         response = f"END You selected: {selected_sub_option.name}. Value: {selected_sub_option.value}"
         session.state = 'start'
     except (ValueError, IndexError):
