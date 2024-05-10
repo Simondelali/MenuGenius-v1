@@ -5,6 +5,8 @@ from django.views.decorators.csrf import csrf_exempt
 
 from .models import MenuOption, Menu
 
+from datetime import datetime
+
 # views.py
 
 active_sessions = {}
@@ -12,10 +14,17 @@ active_sessions = {}
 class USSDSession:
     def __init__(self):
         self.state = 'start'
-        self.user_data = {}
+        self.user_data = {
+            'date': '',
+            'menuId': '',
+            'sessionId': '',
+            'phoneNumber': '',
+            'data': [],
+        }
 
 @csrf_exempt
 def ussd_endpoint(request):
+    global session_id
     if request.method == 'POST':
         # Retrieve or create USSD session object for the user
         session_id = request.POST.get('sessionId')
@@ -24,10 +33,17 @@ def ussd_endpoint(request):
         else:
             session = USSDSession()
             active_sessions[session_id] = session
+        session.user_data['sessionId'] = session_id
 
         # Parse incoming USSD request
         ussd_input = request.POST.get('text', '')
         ussd_text = ussd_input.split('*')[-1]
+
+        #retrieve phone number
+        phoneNumber = request.POST.get('phoneNumber')
+        session.user_data['phoneNumber'] = phoneNumber
+        # active_sessions.pop(session_id)
+        print(active_sessions)
 
         # Process USSD request based on current state
         response = process_input(session, ussd_text) 
@@ -64,14 +80,18 @@ def handle_select_menu_state(session, input):
     try:
         selected_menu_index = int(input)
         selected_menu = Menu.objects.all()[selected_menu_index - 1]
-        session.selected_menu = selected_menu
+        session.user_data['menuId'] = selected_menu.pk #storing which menu was chosen
+        date = datetime.now()
+        session.user_data['date'] = date
+        print(session.user_data)
+        session.selected_menu = selected_menu    #check this later
         options = selected_menu.menuoption_set.filter(parent_option=None)  # Only top-level options
         response = "CON Choose an option:\n"
         for i, option in enumerate(options, start=1):
             response += f"{i}. {option.name}\n"
         session.state = 'select_option'
     except (ValueError, IndexError):
-        response = "END Invalid input. Please select a valid menu option."
+        response = "CON Invalid input. Please select a valid menu option."
     return response
 
 def handle_select_option_state(session, input):
@@ -85,12 +105,12 @@ def handle_select_option_state(session, input):
             for i, sub_option in enumerate(sub_options, start=1):
                 response += f"{i}. {sub_option.name}\n"
             session.state = 'select_sub_option'
-            print(session.user_data, 'teyeyeyy')
         else:
             response = f"END You selected: {selected_option.name}. Value: {selected_option.value}"
+            active_sessions.pop(session_id)
             session.state = 'start'
     except (ValueError, IndexError):
-        response = "END Invalid input. Please select a valid option."
+        response = "CON Invalid input. Please select a valid option."
     return response
 
 def handle_select_sub_option_state(session, input):
@@ -98,8 +118,9 @@ def handle_select_sub_option_state(session, input):
         selected_sub_option_index = int(input)
         selected_sub_option = session.selected_menu.menuoption_set.filter(parent_option=selected_option)[selected_sub_option_index - 1]
         response = f"END You selected: {selected_sub_option.name}. Value: {selected_sub_option.value}"
+        active_sessions.pop(session_id)
         session.state = 'start'
     except (ValueError, IndexError):
-        response = "END Invalid input. Please select a valid sub-option."
+        response = "CON Invalid input. Please select a valid sub-option."
     return response
 
