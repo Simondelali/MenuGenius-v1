@@ -1,11 +1,11 @@
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import get_object_or_404
 from django.http import HttpResponse 
-
 from django.views.decorators.csrf import csrf_exempt
 
-from .models import MenuOption, Menu
-
 from datetime import datetime
+
+from .models import Menu
+
 
 # views.py
 
@@ -33,17 +33,17 @@ def ussd_endpoint(request):
         else:
             session = USSDSession()
             active_sessions[session_id] = session
+        
+        #retrieve ussd POST data from request
+        ussd_input = request.POST.get('text', '')
+        phoneNumber = request.POST.get('phoneNumber')
+
+        # save to session user data
         session.user_data['sessionId'] = session_id
+        session.user_data['phoneNumber'] = phoneNumber
 
         # Parse incoming USSD request
-        ussd_input = request.POST.get('text', '')
         ussd_text = ussd_input.split('*')[-1]
-
-        #retrieve phone number
-        phoneNumber = request.POST.get('phoneNumber')
-        session.user_data['phoneNumber'] = phoneNumber
-        # active_sessions.pop(session_id)
-        print(active_sessions)
 
         # Process USSD request based on current state
         response = process_input(session, ussd_text) 
@@ -52,7 +52,7 @@ def ussd_endpoint(request):
         return HttpResponse(response)
     else:
         # Handle other HTTP methods if necessary
-        return HttpResponse("Method not allowed", status=405)
+        return HttpResponse("Method not allowed, Use POST", status=405)
 
 def process_input(session, input):
     state_handlers = {
@@ -80,10 +80,13 @@ def handle_select_menu_state(session, input):
     try:
         selected_menu_index = int(input)
         selected_menu = Menu.objects.all()[selected_menu_index - 1]
-        session.user_data['menuId'] = selected_menu.pk #storing which menu was chosen
+
+        #storing which menu was chosen and datetime
+        session.user_data['menuId'] = selected_menu.pk 
         date = datetime.now()
         session.user_data['date'] = date
         print(session.user_data)
+
         session.selected_menu = selected_menu    #check this later
         options = selected_menu.menuoption_set.filter(parent_option=None)  # Only top-level options
         response = "CON Choose an option:\n"
